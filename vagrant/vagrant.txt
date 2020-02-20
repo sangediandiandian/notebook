@@ -1,0 +1,312 @@
+1. machine管理
+$ vagrant init      # 初始化，生成Vagrantfile，可指定box
+$ vagrant up        # 启动虚拟机，可指定machine
+$ vagrant halt      # 关闭虚拟机，可指定machine
+$ vagrant reload    # 重启虚拟机，并重新加载配置参数，可指定machine
+$ vagrant ssh       # SSH 至虚拟机，可指定machine
+$ vagrant suspend   # 挂起虚拟机，可指定machine
+$ vagrant resume    # 唤醒虚拟机，可指定machine
+$ vagrant status    # 查看虚拟机运行状态，可指定machine
+$ vagrant destroy   # 销毁当前虚拟机，可指定machine
+$ vagrant suspend   # 挂起当前的虚拟机
+$ vagrant resume    # 恢复前面被挂起的状态
+2. box管理
+$ vagrant box list    # 查看本地box列表
+$ vagrant box add     # 添加box到列表 vagrant box add <box_name> <file_path>
+$ vagrant box remove  # 从box列表移除 
+3. machine与box转换
+$ vagrant package        # 对指定machine打包成box
+$ vagrant box repackage  # 对指定box重新打包成box，该box的machine会被halt
+vagrant package --output web.box web-->$ vagrant box repackage <name> <provider> <version>
+4. Vagrant File
+
+配置详解
+1、config.vm.hostname = "node1"
+配置虚拟机主机名，设置hostname非常重要，因为当我们有很多台虚拟服务器的时候，都是依靠hostname來做识别的。比如，我安装了centos1,centos2 两台虚拟机，再启动时，我可以通过vagrant up centos1来指定只启动哪一台。
+2、config.vm.synced_folder 共享文件夹
+config.vm.synced_folder "D:/xxx/code", "/home/www/" 
+3、config.ssh.username
+默认的用户是vagrant，从官方下载的box往往使用的是这个用户名。如果是自定制的box，所使用的用户名可能会有所不同，通过这个配置设定所用的用户名。
+4、config.vm.provision
+我们可以通过这个配置在虚拟机第一次启动的时候进行一些安装配置
+需要注意的是，Vagrantfile文件只会在第一次执行vagrant up时调用执行，其后如果不明确使用vagrant reload进行重新加载，否则不会被强制重新加载。
+其次，如果改变了辅助脚本，需要 vagrant reload --provision
+5、config.vm.box
+box设置，该名称是再使用 vagrant init xxx 中后面跟的名字。
+6、config.vm.network
+这是配置虚拟机网络，config.vm.network "private_network", ip: "192.168.10.11"
+		//Host-only模式
+		config.vm.network "public_network", ip: "10.1.2.61"
+		//Bridge模式
+		Vagrant的网络连接方式有三种：
+		NAT: 缺省创建，用于让vm可以通过host转发访问局域网甚至互联网。
+		host-only: 只有主机可以访问vm，其他机器无法访问它。
+		bridge: 此模式下vm就像局域网中的一台独立的机器，可以被其他机器访问。
+		host-only 模式的IP可以不指定，而是采用dhcp自动生成的方式，如: config.vm.network "private_network", type: "dhcp"
+		创建一个bridge桥接网络，指定IP
+		config.vm.network "public_network", ip: "192.168.0.17"
+		创建一个bridge桥接网络，指定桥接适配器
+		config.vm.network "public_network", bridge: "en1: Wi-Fi (AirPort)"
+		创建一个bridge桥接网络，不指定桥接适配器
+		config.vm.network "public_network"
+7、配置端口转发
+	一个一个配置host(本机),guest(虚拟机)
+	config.vm.network "forwarded_port", guest: 80, host: 8080
+	config.vm.network "forwarded_port", guest: 8181, host: 8181
+
+8、定义vm的configure配置节点(一个节点就是一个虚拟机)
+	如果在一个vagrantfile文件中想定义多个虚拟机，需要添加以下节点：
+
+		Vagrant.configure("2") do |config|
+		 
+		  config.vm.define "web" do |web|
+		    web.vm.box = "apache"
+		  end
+		 
+		  config.vm.define "db" do |db|
+		    db.vm.box = "mysql"
+		  end
+
+		end
+
+		定义了两个虚拟机 web 和 db，他们的配置变量分别是 web 和 db。
+		当定义了多主机之后，在使用vagrant命令的时候，就需要加上主机名，例如vagrant ssh web；
+		也有一些命令，如果你不指定特定的主机，那么将会对所有的主机起作用，比如vagrant up；
+		你也可以使用表达式指定特定的主机名，例如vagrant up /follower[0-9]/。
+
+		参数"2"的含义：
+		表示的是当前配置文件使用的vagrant configure版本号为Vagrant 1.1+,如果取值为1，表示为Vagrant 1.0.x Vagrantfiles，旧版本暂不考虑，记住就写2即可。
+
+		do … end 为配置的开始结束符，所有配置信息都写在这两段代码之间。 config是为当前配置命名，你可以指定任意名称，如myvmconfig，在后面引用的时候，改为自己的名字即可。
+
+9、在vagrantfile中定义变量
+
+		VAGRANTFILE_API_VERSION ||= "2"
+		confDir = $confDir ||= File.expand_path(File.dirname(__FILE__))
+
+		homesteadYamlPath = confDir + "/Homestead.yaml"
+		homesteadJsonPath = confDir + "/Homestead.json"
+		afterScriptPath = confDir + "/after.sh"
+		customizationScriptPath = confDir + "/user-customizations.sh"
+		aliasesPath = confDir + "/aliases"
+
+		require File.expand_path(File.dirname(__FILE__) + '/scripts/homestead.rb')
+
+		Vagrant.require_version '>= 2.1.0'
+
+		Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+			...
+			...
+		end
+
+10、vm提供者配置
+		config.vm.provider "virtualbox" do |vb|
+		    vb.memory = "2048"
+		end
+
+		虚机容器提供者配置，对于不同的provider，特有的一些配置，此处配置信息是针对virtualbox定义一个提供者，命名为vb，跟前面一样，这个名字随意取，只要节点内部调用一致即可。
+		配置信息又分为通用配置和个性化配置，通用配置对于不同provider是通用的，
+		1、常用的通用配置如下：
+			vb.name = "centos7"
+			#指定vm-name，也就是virtualbox管理控制台中的虚机名称。如果不指定该选项会生成一个随机的名字，不容易区分。
+			vb.gui = true
+			# vagrant up启动时，是否自动打开virtual box的窗口，缺省为false
+			vb.memory = "1024"
+			#指定vm内存，单位为MB
+			vb.cpus = 2
+			#设置CPU个数
+		2、个性化配置(virtualbox)
+			#修改vb.name的值
+			vb.customize ["modifyvm", :id, "--name", "mfsmaster2"]
+			 
+			#如修改显存，缺省为8M，如果启动桌面，至少需要10M，如下修改为16M：
+			vb.customize ["modifyvm", :id, "--vram", "16"]
+			 
+			#调整虚拟机的内存
+			vb.customize ["modifyvm", :id, "--memory", "1024"]
+			 
+			#指定虚拟CPU个数
+			vb.customize ["modifyvm", :id, "--cpus", "2"]
+			 
+			#增加光驱：
+			vb.customize ["storageattach",:id,"--storagectl", "IDE Controller","--port","0","--device","0","--type","dvddrive","--medium","/Applications/VirtualBox.app/Contents/MacOS/VBoxGuestAdditions.iso"]
+			#注：meduim参数不可以为空，如果只挂载驱动器不挂在iso，指定为“emptydrive”。如果要卸载光驱，medium传入none即可。
+			#从这个指令可以看出，customize方法传入一个json数组，按照顺序传入参数即可。
+			 
+			#json数组传入多个参数
+			vb.customize ["modifyvm", :id, "--name", “mfsserver3", "--memory", “2048"]
+
+11、provision任务
+		你可以编写一些命令，让vagrant在启动虚拟机的时候自动执行，这样你就可以省去手动配置环境的时间了。
+		
+		脚本何时会被执行
+			第一次执行vagrant up命令
+			执行vagrant provision命令
+			执行vagrant reload --provision或者vagrant up --provision命令
+			你也可以在启动虚拟机的时候添加--no-provision参数以阻止脚本被执行
+
+		因为脚本一般用来安装一些软件等操作，其实在第一次启动虚拟机时安装就好了，以后就不用装了，不用每次启动都安装，所以vagrant做了这样的设计。当然如果该了脚本内容是需要强迫vagrant去执行的。
+
+		注意：如果只是该了vagrantfile文件的内容（没有改动provision），vagrant up / vagrant reload 会应用最新的配置来启动的，不用操心。
+
+		provision任务是什么？
+		provision任务是预先设置的一些操作指令，格式：config.vm.provision 命令字 代码段
+		provisioner可以分为：
+			Shell，执行shell脚本
+			File，复制本机文件到VM，config.vm.provision "file", source: aliasesPath, destination: "/tmp/bash_aliases"
+			Ansible，
+			CFEngine，
+			Chef，
+			Docker，
+			Puppet，
+			Salt
+		根据作用域：configure级，vm级   （先执行configure级任务，再执行vm级任务）
+		实例：
+		Vagrant.configure("2") do |config|
+
+		  config.vm.provision "shell", inline: "echo 1"
+		 
+		  config.vm.define "web" do |web|
+		    web.vm.provision "shell", inline: "echo 2"
+		  end
+		 
+		  config.vm.provision "shell", inline: "echo 3"
+
+		end
+
+		一次执行：echo 1, echo 3, echo 2
+
+		1、单行脚本：
+		config.vm.provision "shell", inline: "echo fendo"
+		或者
+		config.vm.provision "shell" do |s|
+		  s.inline = "echo hello provision"
+		end
+
+		2、内联脚本：
+		在config外面定义好变量
+			$script = <<SCRIPT
+			echo I am provisioning...
+			echo hello provision.
+			SCRIPT
+
+		在config里面
+		config.vm.provision "shell", inline: $script
+
+		3、外部脚本
+		也可以把代码写入代码文件，并保存在一个shell里，进行调用：
+		config.vm.provision "shell", path: "script.sh"
+
+		script.sh的内容：
+			echo hello provision.
+
+
+		注意:
+		如果使用provision来yum安装程序，加上-y参数，如：yum install -y lrzsz
+
+
+创建两个machine
+Vagrant.configure(2) do |config|
+  config.vm.define "web" do |web|
+    # web.vm.box = "ubuntu/xenial64"
+    web.vm.box = "ubuntu/1604"
+    web.vm.box_url = "file:///home/kevin/learn/vagrant/xenial-server-cloudimg-amd64-vagrant.box"
+    web.vm.hostname = "web"
+    web.vm.network "private_network", ip: "192.168.56.10"
+    web.vm.provider "virtualbox" do |v|
+      v.gui = false
+      v.name = "ubuntu-0"
+      v.cpus = "1"
+      v.memory = "2048"
+    end
+  end
+
+  config.vm.define "db" do |db|
+    # db.vm.box = "ubuntu/xenial64"
+    db.vm.box = "ubuntu/1604"
+    db.vm.box_url = "file:///home/kevin/learn/vagrant/xenial-server-cloudimg-amd64-vagrant.box"
+    db.vm.hostname = "db"
+    db.vm.network "private_network", ip: "192.168.56.11"
+    db.vm.provider "virtualbox" do |v|
+      v.gui = false
+      v.name = "ubuntu-1"
+      v.cpus = "1"
+      v.memory = "2048"
+    end
+  end
+end
+
+循环创建3个node
+Vagrant.configure(2) do |config|
+  (1..3).each do |i|
+    config.vm.define "node-#{i}" do |node|
+      node.vm.box = "ubuntu/1804"
+      node.vm.box_url = "file:///home/shuzhang/Public/bionic-server-cloudimg-amd64-vagrant.box"
+      node.vm.hostname = "node#{i}"
+      node.vm.network "private_network", ip: "192.168.56.#{i}"
+      node.vm.provider "virtualbox" do |v|
+        v.gui = false
+        v.name = "ubuntu-#{i}"
+        v.cpus = "1"
+        v.memory = "2048"
+      end
+    end
+  end
+end
+
+一个实例
+
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+require 'json'
+require 'yaml'
+
+VAGRANTFILE_API_VERSION ||= "2"
+confDir = $confDir ||= File.expand_path(File.dirname(__FILE__))
+
+homesteadYamlPath = confDir + "/Homestead.yaml"
+homesteadJsonPath = confDir + "/Homestead.json"
+afterScriptPath = confDir + "/after.sh"
+customizationScriptPath = confDir + "/user-customizations.sh"
+aliasesPath = confDir + "/aliases"
+
+require File.expand_path(File.dirname(__FILE__) + '/scripts/homestead.rb')
+
+Vagrant.require_version '>= 2.1.0'
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+    if File.exist? aliasesPath then
+        config.vm.provision "file", source: aliasesPath, destination: "/tmp/bash_aliases"
+        config.vm.provision "shell" do |s|
+            s.inline = "awk '{ sub(\"\r$\", \"\"); print }' /tmp/bash_aliases > /home/vagrant/.bash_aliases"
+        end
+    end
+
+    if File.exist? homesteadYamlPath then
+        settings = YAML::load(File.read(homesteadYamlPath))
+    elsif File.exist? homesteadJsonPath then
+        settings = JSON::parse(File.read(homesteadJsonPath))
+    else
+        abort "Homestead settings file not found in #{confDir}"
+    end
+
+    Homestead.configure(config, settings)
+
+    if File.exist? afterScriptPath then
+        config.vm.provision "shell", path: afterScriptPath, privileged: false, keep_color: true
+    end
+
+    if File.exist? customizationScriptPath then
+        config.vm.provision "shell", path: customizationScriptPath, privileged: false, keep_color: true
+    end
+
+    if Vagrant.has_plugin?('vagrant-hostsupdater')
+        config.hostsupdater.aliases = settings['sites'].map { |site| site['map'] }
+    elsif Vagrant.has_plugin?('vagrant-hostmanager')
+        config.hostmanager.enabled = true
+        config.hostmanager.manage_host = true
+        config.hostmanager.aliases = settings['sites'].map { |site| site['map'] }
+    end
+end
+
