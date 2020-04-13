@@ -1,0 +1,153 @@
+软件版本：
+os centos7.2
+kubernetes(yum源 v1.11.0)
+etcd 3.2.18
+docker 17.03
+calico 3.1.3
+
+一、实践准备环境
+1、服务器说明
+centos7.2 172.18.41.18 master >=2 >=2G m7-a2-15-41.18-jiagou.cn
+centos7.2 172.18.41.19 master >=2 >=2G m7-a2-15-41.19-jiagou.cn
+centos7.2 172.18.41.20 master >=2 >=2G m7-a2-15-41.20-jiagou.cn
+centos7.2 172.18.64.41 worker >=2 >=2G syq-g05-64.41-jiagou.cn
+centos7.2 172.18.64.42 worker >=2 >=2G syq-g05-64.42-jiagou.cn
+
+2、系统设置
+主机名
+vi /etc/hosts
+172.18.41.18 m7-a2-15-41.18-jiagou.cn
+172.18.41.19 m7-a2-15-41.19-jiagou.cn
+172.18.41.20 m7-a2-15-41.20-jiagou.cn
+172.18.64.41 syq-g05-64.41-jiagou.cn
+172.18.64.42 syq-g05-64.42-jiagou.cn
+
+安装依赖包
+yum update
+yum install -y conntrack ipvsadm ipset jq sysstat curl iptables libseccomp
+
+关闭防火墙：systemctl stop firewalld && systemctl disable firewalld
+重置iptables:iptables -F && iptables -X && iptables -F -t nat && iptables -X -t nat && iptables -P FORWARD ACCEPT
+关闭swap:swapoff -a 回车 sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+关闭selinux:setenforce 0
+关闭dnsmasq(否则可能导致docker容器无法解析域名):service dnsmasq stop && systemctl disable dnsmasq
+
+系统参数设置 制作配置文件
+cat > /etc/sysctl.d/kubernetes.conf <<EOF
+net.bridge.bridge-nf-call-iptables=1
+net.bridge.bridge-nf-call-ip6tables=1
+net.ipv4.ip_forward=1
+vm.swappiness=0
+vm.overcommit_memory=1
+vm.panic_on_oom=0
+fs.inotify.max_user_watches=89100
+EOF
+生效文件：sysctl -p /etc/sysctl.d/kubernetes.conf
+#报错：sysctl: cannot stat /proc/sys/net/bridge/bridge-nf-call-iptables: No such file or directory
+#sysctl: cannot stat /proc/sys/net/bridge/bridge-nf-call-ip6tables: No such file or directory
+#解决办法：modprobe br_netfilter
+
+3、安装docker
+安装wget：yum -y install wget
+mkdir -p /opt/kubernetes/docker && cd /opt/kubernetes/docker
+$ wget http://yum.dockerproject.org/repo/main/centos/7/Packages/docker-engine-selinux-17.03.1.ce-1.el7.centos.noarch.rpm
+$ wget http://yum.dockerproject.org/repo/main/centos/7/Packages/docker-engine-17.03.1.ce-1.el7.centos.x86_64.rpm
+$ wget http://yum.dockerproject.org/repo/main/centos/7/Packages/docker-engine-debuginfo-17.03.1.ce-1.el7.centos.x86_64.rpm
+ 
+# 清理原有版本
+$ yum remove -y docker* container-selinux
+ 
+# 安装rpm包
+$ yum localinstall -y *.rpm
+ 
+# 开机启动
+$ systemctl enable docker
+ 
+# 设置参数
+# 1.查看磁盘挂载
+$ df -h
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda2        98G  2.8G   95G   3% /
+devtmpfs         63G     0   63G   0% /dev
+/dev/sda5      1015G  8.8G 1006G   1% /tol
+/dev/sda1       197M  161M   37M  82% /boot
+ 
+# 2.选择比较大的分区（我这里是/tol）
+$ mkdir -p /docker-data
+$ cat <<EOF > /etc/docker/daemon.json
+{
+    "graph": "/docker-data"
+}
+EOF
+ 
+# 启动docker服务
+service docker restart
+
+4. 安装必要工具（所有节点）
+4.1 工具说明
+kubeadm: 部署集群用的命令
+kubelet: 在集群中每台机器上都要运行的组件，负责管理pod、容器的生命周期
+kubectl: 集群管理工具（可选，只要在控制集群的节点上安装即可）
+4.2 安装方法
+# 配置yum源（科学上网的同学可以把"mirrors.aliyun.com"替换为"packages.cloud.google.com"）
+$ cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=http://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=0
+repo_gpgcheck=0
+gpgkey=http://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg
+       http://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg
+EOF
+
+# 安装工具
+# 找到要安装的版本号
+$ yum list kubeadm --showduplicates | sort -r
+
+# 安装指定版本（这里用的是1.14.0）
+$ yum install -y kubeadm-1.14.0-0 kubelet-1.14.0-0 kubectl-1.14.0-0 --disableexcludes=kubernetes
+
+# 设置kubelet的cgroupdriver（kubelet的cgroupdriver默认为systemd，如果上面没有设置docker的exec-opts为systemd，这里就需要将kubelet的设置为cgroupfs）
+$ sed -i "s/cgroup-driver=systemd/cgroup-driver=cgroupfs/g" /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+
+# 启动kubelet
+$ systemctl enable kubelet && systemctl start kubelet
+
+
+二、高可用集群部署
+三、集群可用性测试
+四、部署dashboard
+
+http://www.imooc.com/article/details/id/287737
+https://blog.csdn.net/haoxifer/article/details/102619760
+
+
+k8s调度过程
+Kubernetes Client将请求发送给API server
+API Server根据请求的类型，将处理的结果存入高可用键值存储系统Etcd中
+Scheduler将未分发的Pod绑定（bind）到可用的Node节点上，存到etcd中
+Controller Manager根据etcd中的信息，调用node中的kubelet创建pod
+Controller Manager监控pod的运行状况并确保运行正常
+
+kubectl：命令技巧大全
+https://blog.csdn.net/fly910905/article/details/97232498
+
+kubelet：主要工作是创建、销毁Pod。kubelet需要对Pod资源进行watch，kubelet会 watch想要watch的Pod，即那些已经分配到本节点的Pods。
+
+1、Kubeadm：是一个工具，它提供了kubeadm init以及kubeadm join这两个命令作为快速创建kubernetes集群的最佳实践，通过执行必要的操作来启动和运行一个最小可用的集群。
+kubeadm init 启动一个 Kubernetes 主节点
+kubeadm join 启动一个 Kubernetes 工作节点并且将其加入到集群
+kubeadm upgrade 更新一个 Kubernetes 集群到新版本
+kubeadm config 如果你使用 kubeadm v1.7.x 或者更低版本，你需要对你的集群做一些配置以便使用 kubeadm upgrade 命令
+kubeadm token 使用 kubeadm join 来管理令牌
+kubeadm reset 还原之前使用 kubeadm init 或者 kubeadm join 对节点产生的改变
+kubeadm version 打印出 kubeadm 版本
+kubeadm alpha 预览一组可用的新功能以便从社区搜集反馈
+2、
+3、
+4、
+
+
+
+

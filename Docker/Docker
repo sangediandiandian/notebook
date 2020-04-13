@@ -1,0 +1,10 @@
+Docker安装(ubentu)
+apt-get update
+apt-get install -y docker.io
+Docker环境配置
+设置阿里云镜像https://cr.console.aliyun.com/cn-hangzhou/instances/mirrors
+docker pull mysql:5.6
+docker run -p 3306:3306 --name mymysql -v /home/mysql/data:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=123456 -d mysql:5.6
+
+
+

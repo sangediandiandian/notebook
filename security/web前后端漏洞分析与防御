@@ -1,0 +1,66 @@
+web安全：1、代码层面 2、架构层面 3、运维层面
+
+环境搭建
+安装nodemon全局模块，代码有变更自动重启nodejs
+npm install nodemon -g
+安装jspm 包管理工具
+npm install jspm -g
+解析html，返回类似doom的结构
+npm install cheerio -g
+验证码 ccap
+
+一、跨站脚本攻击XSS
+Scripting能干啥：获取页面数据、获取Cookies、劫持前端逻辑、发送请求、偷取网站任意数据、偷取用户资料、偷取用户密码和登录态、欺骗用户
+<script>alert(1)</script>
+XXS注入攻击点：HTML节点内容（“/”“\”转义处理）、HTML属性（转义双引号、单引号、空格）、JavaScript代码、富文本
+浏览器检测XSS攻击（ctx.set('X-XSS-Protection', 0)）
+HTML中使用的字符实体表
+
+var escapeHtml = function(str){
+	if(!str) return '';
+	str = str.replace(/&/g, '&apm;');
+	str = str.replace(/</g, '&lt;');
+	str = str.replace(/>/g, '&gt;');
+	str = str.replace(/"/g, '&quto;');
+	str = str.replace(/'/g, '&#39;');
+	//str = str.replace(/ /g, '&#32;');
+	return str;
+}
+
+CSP(Content Security Policy) 内容安全策略
+
+二、跨站请求伪造攻击CSRF
+CSRF(Cross Site Request Forgy) 跨站请求伪造
+防御：
+1、禁止第三方网站带Cookies，通过same-site属性确认
+2、在前端页面加入验证信息、验证码、token
+3、验证referer禁止第三方网站的请求
+
+三、前端Cookies安全性
+Cookies特性：前端数据存储、后端通过http头设置、请求时通过http头传给后端、前端可读写、遵守同源策略
+Cookies特性：域名、有效期、路径、http-only、secure
+Cookies作用：存储个性化设置、存储未登录时用户唯一标识、存储已登录用户的凭证、存储其他业务数据
+Cookies登录用户凭证：前端提交用户名和密码、后端验证用户名和密码、后端通过http头设置用户凭证、后续访问时后端先验证用户凭证
+四、点击劫持攻击
+通过iframe实现
+五、传输过程安全问题
+AnyProxy 代理软件
+如何确认服务器身份：证书无法伪造、证书私钥不被泄露、域名管理权不泄露、CA坚守原则
+六、用户密码安全问题
+单向变换彩虹表
+密码存储：严禁明文存储（防泄漏）、单向变换（防泄漏）、变换复杂度要求（防猜解）、密码复杂度要求（防猜解）、加盐（防猜解）
+七、SQL注入攻击
+一些神奇的sql语句
+select * from table where id="10" and 1=0
+select * from table where id="10" or 1=1
+select * from table where id="10" and mid(version(),1,1) = 5
+select 1,2,3 from table 
+select id,1,2,3 from table
+select * from table union select 1,2,3 from table2
+select * from table where mid(username,1,1)="t"
+
+SQL注入防御：关闭错误输出、检查数据类型、对数据进行转义、使用参数化查询、使用ORM（对象关系映射）
+八、信息泄露和社会工程学
+九、其他安全问题
+DOS拒绝服务攻击：TCP半连接、HTTP连接、DNS
+DDOS大规模分布式拒绝服务攻击

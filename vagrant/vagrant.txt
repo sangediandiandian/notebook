@@ -24,7 +24,7 @@ vagrant package --output web.box web-->$ vagrant box repackage <name> <provider>
 1、config.vm.hostname = "node1"
 配置虚拟机主机名，设置hostname非常重要，因为当我们有很多台虚拟服务器的时候，都是依靠hostname來做识别的。比如，我安装了centos1,centos2 两台虚拟机，再启动时，我可以通过vagrant up centos1来指定只启动哪一台。
 2、config.vm.synced_folder 共享文件夹
-config.vm.synced_folder "D:/xxx/code", "/home/www/" 
+config.vm.synced_folder "D:/vagrant/k8s/temp/tcp/", "/home/k8stemp"
 3、config.ssh.username
 默认的用户是vagrant，从官方下载的box往往使用的是这个用户名。如果是自定制的box，所使用的用户名可能会有所不同，通过这个配置设定所用的用户名。
 4、config.vm.provision
@@ -309,4 +309,36 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         config.hostmanager.aliases = settings['sites'].map { |site| site['map'] }
     end
 end
+
+
+# config.vm.provision "shell", inline: <<-SHELL
+#   apt-get update
+#   apt-get install -y apache2
+# SHELL
+
+###VirtualBox中的Centos安装增强功能包VBoxLinuxAdditions和共享本机文件夹###
+(https://blog.csdn.net/buyueliuying/article/details/51645649?depth_1-utm_source=distribute.pc_relevant.none-task&utm_source=distribute.pc_relevant.none-task)
+1、配置环境变量
+yum update  #可执行也可不执行
+yum groupinstall "Development Tools"
+yum install kernel
+yum install kernel-devel
+yum install kernel-headers
+yum install gcc
+yum install make  
+2、找到virtualbox安装目录下的iso文件，并进行加载
+VBoxGuestAdditions.iso
+新增目录 mkdir /home/website
+挂载到CD/DVD虚拟光驱
+mount -t auto /dev/cdrom /home/website(这里的cdrom是cd的，有时是dvd1，具体有什么光驱到 /dev目录下查看)
+转到目录
+cd /home/website
+ls
+此时看到列表中有VBoxLinuxAdditions.run说明挂载成功
+sh ./VBoxLinuxAdditions.run
+###等待安装完成###
+
+
+
+
 
