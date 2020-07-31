@@ -1,0 +1,23 @@
+/dev 存放抽象硬件
+/lib 存放系统库文件
+/sbin存放特权级二进制文件
+/var 存放经常变化的文件
+/home 普通用户目录
+/etc 存放配置文件目录
+/boot 存放内核与启动文件
+/bin 存放二进制文件（可执行命令）
+/usr 存放安装程序（软件默认目录）
+/mnt 文件挂载目录（u盘，光驱）
+/root 特权用户目录
+/opt 大型软件存放目录（非强制）
+
+centos默认安装firewall防火墙
+firewall-cmd --state 查看
+service firewall start 启动
+service firewall stop  停止
+service firewall restart 重启
+firewall-cmd --permanent --add-port=8080-8085/tcp 端口管理-开放端口
+firewall-cmd --reload 重新登陆
+firewall-cmd --permanent --remove-port=8080-8085/tcp 端口管理-删除设置开发端口
+firewall-cmd --list-ports 查看开发端口
+

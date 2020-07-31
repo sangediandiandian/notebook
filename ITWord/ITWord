@@ -1,0 +1,27 @@
+前端
+node.js:简单的说Node.js就是运行在服务端的JavaScript。Node.js是一个基于Chrome JavaScript运行时建立的一个平台。Node.js是一个事件驱动I/O服务端JavaScript环境，基于Google的V8引擎，
+V8引擎执行Javascript的速度非常快，性能非常好
+
+
+
+
+集群
+
+PXC
+是一套MySQL高可用集群解决方案，与传统的基于主从复制模式的集群架构相比PXC最突出特点就是解决了诟病已久的数据复制延迟问题，基本上可以达到实时同步。而且节点与节点之间，
+他们相互的关系是对等的。PXC最关注的是数据的一致性，对待事物的行为时，要么在所有节点上执行，要么都不执行，它的实现机制决定了它对待一致性的行为非常严格，
+这也能非常完美的保证MySQL集群的数据一致性
+
+Keepalived
+是一个免费开源的，用C编写的类似于layer3, 4 & 7交换机制软件，具备我们平时说的第3层、第4层和第7层交换机的功能。主要提供loadbalancing（负载均衡）和 high-availability（高可用）功能，
+负载均衡实现需要依赖Linux的虚拟服务内核模块（ipvs），而高可用是通过VRRP协议实现多台机器之间的故障转移服务
+
+XtraBackup
+是一款基于InnoDB的在线热备工具，具有开源免费，支持在线热备，占用磁盘空间小，能够非常快速地备份与恢复mysql数据库
+
+
+数据库
+Redis（Remote Dictionary Server )
+即远程字典服务，是Wmware开发的开源免费的KV型NoSQL缓存产品，支持网络、可基于内存亦可持久化的日志型、Key-Value数据库，并提供多种语言的API。
+
+

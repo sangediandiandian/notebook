@@ -7,4 +7,250 @@ docker pull mysql:5.6
 docker run -p 3306:3306 --name mymysql -v /home/mysql/data:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=123456 -d mysql:5.6
 
 
+Docker创建的所有虚拟实例共用同一个Linux内核，对硬件占用较小，属于轻量级虚拟机
+1、centos安装docker
+yum -y update
+yum install -y docker
+-y 代表选择程序安装中的yes选项
+2、启动、关闭与重启
+service docker start 启动
+service docker stop 停止
+service docker restart 重启
+3、在线安装镜像
+docker search java
+docker pull java
+国内镜像仓库 DaoCloud
+vi /etc/docker/daemon.json 删除逗号
+4、导入导出镜像
+docker save java > /home/java.tar.gz
+docker load < /home/java.tar.gz
+docker images
+docker rmi java
+4、docker命令
+docker images 查看image
+docker run -it --name myjava java bash #启动一个容器，-it 启动后开启一个交互界面，--name 设置名字 
+docker run -it --name myjava -p 9000:8080 -p 9001:8085 java bash 端口映射
+docker run -it --name myjava -v /home/project:/soft --privileged java bash 文件夹映射，--privileged权限
+docker run -it -p 9000:8080 -p 9001:8085 -v /home/project:/soft --privileged --name myjava docker.io/java bash
+docker pause myjava 暂停容器
+docker unpause myjava 恢复容器
+docker stop myjava 停止容器
+docker start -i myjava 启动容器
+docker ps -a 查看容器
+5、单节点数据库的弊病
+大型互联网程序用户群体庞大，所以架构必须要特殊涉及
+单节点的数据库无法满足性能上的要求
+单节点的数据库没有冗余设计，无法满足高可用
+6、MYSQL集群方案
+1)安装PXC镜像
+下载或者导入本地镜像
+docker pull percona/percona-xtradb-cluster
+docker load < /home/soft/pxc.tar.gz
+2)创建内部网络
+出于安全考虑，需要给PXC集群实例创建Docker内部网络
+docker network create net1  创建net1网络
+docker network inspect net1 查看net1网络
+docker network rm net1      删除net1网络
+例：docker network create --subnet=172.18.0.0/24 net1 创建指定网段
+3)创建Docker卷
+容器中的PXC节点映射数据目录的解决办法
+docker volume create --name v1 创建卷v1
+docker inspect v1 查看卷v1
+docker volume rm v1 删除卷v1
+4）创建PXC容器
+只需要向PXC镜像传入运行参数就能创建出PXC容器
+docker run -d -p 3306:3306 -v v1:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=abc123456 -e CLUSTER_NAME=PXC -e XTRABACKUP_PASSWORD=abc123456 --privileged --name=node1 
+--net=net1 --ip 172.18.0.2 pxc
+# -d:创建的容器后台运行 -p：端口映射 3301：3302（意思就是把容器的3302端口映射到宿主机的3301端口） -v：路径映射 -e：启动参数
+# --privileged权限 
+
+数据库负责均衡的必要性
+使用Haproxy做负载均衡，请求被均匀分发给每个节点，单节点负载低，性能好
+1、安装Haproxy镜像
+docker pull docker.io/tutum/haproxy
+2、创建Haproxy配置文件
+touch /home/soft/haproxy.cfg（参考：https://zhangge.net/5125.html）
+3、创建Haproxy容器
+docker run -it -d -p 4001:8888 -p 4002:3306 -v /home/soft/haproxy:/usr/local/etc/haproxy --name h1 --privileged --net=net1 --ip 172.19.0.7 docker.io/tutum/haproxy 
+docker exec -it h1 bash
+haproxy -f /usr/local/etc/haproxy/haproxy.cfg
+4、测试
+CREATE USER 'haproxy'@'%' IDENTIFIED BY '';
+http://192.168.99.104:4001/dbs admin abc123456
+
+#ubentu 防火墙iptables关闭指定端口
+iptables -A INPUT -p tcp --dport 4567 -j DROP
+iptables -A OUTPUT -p tcp --dport 4567 -j DROP
+#ubentu 防火墙iptables关闭指定端口
+
+负载均衡的高可用方案
+1、安装keepalived，必须装在Haproxy所在容器里
+apt-get update
+apt-get install keepalived
+2、Keepalived配置文件(/etc/keepalived/keepalived.conf)
+apt-get install vim
+vim /etc/keepalived/keepalived.conf
+vrrp_instance VI_1 {
+    state MASTER                    #keepalived的身份（MASTER主服务，BACKUP备服务器）。主服务要抢占虚拟IP，备用服务器不会抢占IP
+    interface eth0                  #网卡设备
+    virtual_router_id 51            #虚拟路由标识，MASTER和BACKUP的虚拟路由标识必须一致。标识可以是0~255
+    priority 100                    #MASTER权重要高于BACKUP数字越大优选级越高
+    advert_int 1                    #MASTER与BACKUP节点间同步检查的时间间隔，单位为秒。主备之间必须一致。
+    authentication{                 #主从服务器验证方式。主备必须使用相同的密码才能正常通信
+        auth_type PASS
+        auth_pass 123456
+    }
+    virtual_ipaddress{              #虚拟IP地址。可以设置多个虚拟IP地址，每行一个
+        172.18.0.201
+    }
+}
+3、启动Keepalived之后，宿主机可以ping通虚拟ip
+service keepalived start
+ping 172.18.0.201
+
+备份数据库
+1、冷备份
+冷备份是关闭数据库时候的备份方式，通常做法是拷贝数据文件
+冷备份是最简单最安全的一种备份方式
+大型网站无法做到关闭业务备份数据，所以冷备份不是最佳选择
+2、热备份
+热备份是在系统运行的状态下备份数据，也是难度最大的备份
+MySQL常见的热备份有LVM和XtraBackup两种方案
+
+xtraBackup是一款基于InnoDB的在线热备工具，具有开源免费，支持在线热备，占用磁盘空间小，能够非常快速地备份与恢复mysql数据库
+1、xtraBackup备份过程不锁表、快速可靠
+2、xtraBackup备份过程不会打断正在执行的事务
+3、xtrabackup能够基于压缩等功能节约磁盘空间和流量
+
+全量备份和增量备份
+全量备份是备份全部数据。备份过程时间长，占用空间大
+增量备份是只备份变化的那部分数据。备份时间短，占用空间小
+
+例：
+docker volume create backup
+docker stop node1
+docker rm node1
+docker run -d -p 3306:3306 -e MYSQL_ROOT_PASSWORD=abc123456 -e CLUSTER_NAME=PXC -e XTRABACKUP_PASSWORD=abc123456 -v v1:/var/lib/mysql -v backup:/data --privileged -e CLUSTER_JOIN=node2 --name=node1 --net=net1 --ip 172.18.0.2 pxc
+
+PXC全量备份步骤
+PXC容器中安装XtraBackup，并执行备份
+apt-get update 
+apt-get install percona-xtrabackup-24
+innobackupex --user=root --password=abc123456 /data/backup/full
+
+PXC全量恢复步骤
+1、数据库可以热备份，但是不能热还原。为了避免恢复过程中的数据同步，我们采用空白的MySQL还原数据，然后再建立PXC集群
+2、还原数据前要将未提交的事物回滚，还原数据之后重启MySQL
+rm -rf /var/lib/mysql/*
+innobackupex --user=root --password=abc123456 --apply-back /data/backup/full/2018-04-15_05-09-07/
+innobackupex --user=root --password=abc123456 --copy-back /data/backup/full/2018-04-15_05-09-07/
+
+
+Redis集群---RedisCluster
+1、无中心节点，客户端与redis节点直连，不需要中间代理层
+2、数据可以被分片存储
+3、管理方便，后续可自行增加或摘除节点
+主从同步
+1、Redis集群中的数据库复制是通过主从同步来实现的
+2、主节点（Master）把数据分发给从节点（Slave）
+3、主从同步的好处在于高可用，Redis节点有冗余设计
+
+配置RedisCluster集群
+1、安装Redis镜像
+导入本地Redis镜像文件，运行Redis容器
+docker pull yyyyttttwwww/redis
+docker run -it -d --name r1 -p 5001:6379 --net=net2 --ip 172.19.0.2 redis bash
+
+docker swarm leave -f
+docker network ls
+docker network rm docker_gwbridge
+docker network create --subnet=172.20.0.0/16 net2
+#docker run -it -d --name r1 -p 5001:6379 --net=net2 --ip 172.20.0.2 redis bash
+docker run -it -d --name rr1 -p 5002:6379 --net=net2 --ip 172.20.0.20 yyyyttttwwww/redis bash
+docker run -it -d --name rr2 -p 5003:6379 --net=net2 --ip 172.20.0.21 yyyyttttwwww/redis bash
+docker run -it -d --name rr3 -p 5004:6379 --net=net2 --ip 172.20.0.22 yyyyttttwwww/redis bash
+docker run -it -d --name rr4 -p 5005:6379 --net=net2 --ip 172.20.0.23 yyyyttttwwww/redis bash
+docker run -it -d --name rr5 -p 5006:6379 --net=net2 --ip 172.20.0.24 yyyyttttwwww/redis bash
+docker run -it -d --name rr6 -p 5007:6379 --net=net2 --ip 172.20.0.25 yyyyttttwwww/redis bash
+docker exec -it rr1 bash
+
+配置Redis节点 /usr/redis/redis.conf
+daemonize yes                     #以后台进程运行
+cluster-enabled yes               #开启集群
+cluster-config-file nodes.conf    #集群配置文件
+cluster-node-timeout 15000        #超时时间
+appendonly yes                    #开启AOF模式
+vi /usr/redis/redis.conf
+cd /usr/redis/src
+./redis-server ../redis.conf
+安装redis-trib.rb
+redis-trib是基于Ruby的Redis集群命令行工具
+cp /usr/redis/src/redis-trib.rb /usr/redis/cluster/
+cd /usr/redis/cluster
+apt-get install ruby
+apt-get install rubygems
+gem install redis
+
+创建Redis集群
+利用redis-trib.rb创建Redis集群
+#./redis-trib.rb create --replicas 1 172.19.0.2:6379 172.19.0.3:6379 172.19.0.4:6379 172.19.0.5:6379 172.19.0.6:6379 172.19.0.7:6379
+./redis-trib.rb create --replicas 1 172.20.0.20:6379 172.20.0.21:6379 172.20.0.22:6379 172.20.0.23:6379 172.20.0.24:6379 172.20.0.25:6379
+--replicas 1 参数表示为每个主节点创建一个从节点
+docker exec -it r1 bash
+cd /usr/redis/
+mkdir cluster
+cd src
+cp redis-trib.rb ../cluster
+cd ../cluster
+./redis-trib.rb create --replicas 1 172.19.0.2:6379 172.19.0.3:6379 172.19.0.4:6379 172.19.0.5:6379 172.19.0.6:6379 172.19.0.7:6379
+
+docker exec -it r1 bash
+/usr/redis/src/redis-cli -c
+set a 10
+get a
+
+docker pause r3
+
+
+maven打包
+mvn clean install -Dmaven.test.skip=true
+clean:表示清除之前的JAR文件
+install:意味着打包到本地
+-Dmaven.test.skip=true:代表跳过测试代码
+
+运行Java容器部署后台项目
+运行java容器，部署并运行JAR文件
+docker run -it -d --name j1 -v j1:/home/soft/ --net=host java
+nohup java -jar /home/soft/renren-fast.jar
+
+后台程序负载均衡
+Nginx是性能非常出色的反向代理服务器，最大可以支持8万/妙的并发访问
+安装Nginx
+docker pull nginx
+docker run -it -d --name n1 -v /home/n1/nginx.conf:/etc/nginx/nginx.conf --net=host --privileged nginx
+
+renrenfast后台项目
+springboot、shiro、Redis、SSM、Swagger、JWT
+renrenfast前端项目
+vue、NodeJS、ElementUI
+
+net start mysql 
+net stop mysql 
+
+查看docker安装目录
+docker info | grep "Docker Root Dir"
+
+查看容器：docker ps -a
+查看运行的容器：docker ps
+重启容器：docker restart 容器ID
+重启容器后进入交互式：docker start -i 5c6ce895b979
+进入容器：docker attach 容器ID
+docker exec -it 容器ID /bin/bash 
+
+
+keepalived
+https://www.cnblogs.com/kevingrace/p/6248941.html
+
+
+192.168.99.150
 
